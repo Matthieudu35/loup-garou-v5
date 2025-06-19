@@ -1,16 +1,17 @@
 <script lang="ts">
-	import { gameState, startGame } from '../../stores/gameStore';
+	import { gameState } from '../../stores/gameState';
 	import { assignRoles } from '../../stores/rolesStore';
 	import { timer } from '../../stores/timerStore';
 	import { users } from '../../stores/usersStore';
 	import { currentUser } from '../../stores/authStore';
+	import { getUserByLogin } from '../../stores/gameLogic';
 	import type { User } from '../../stores/types';
 	import Day from './Day.svelte';
 	import Night from './Night.svelte';
 	import EliminatedPlayer from './EliminatedPlayer.svelte';
 
 	// Utiliser le store currentUser et users pour obtenir l'utilisateur complet
-	$: player = $currentUser ? users.getUserByLogin($currentUser.login) : undefined;
+	$: player = $currentUser ? getUserByLogin($currentUser.login) : undefined;
 	
 	// S'assurer que le joueur a bien toutes ses informations
 	$: {
@@ -18,7 +19,7 @@
 			// Forcer une mise à jour du joueur
 			console.log('Forcing player refresh for', $currentUser.login);
 			setTimeout(() => {
-				player = users.getUserByLogin($currentUser.login);
+				player = getUserByLogin($currentUser.login);
 			}, 100);
 		}
 	}

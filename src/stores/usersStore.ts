@@ -1,45 +1,106 @@
 // src/stores/usersStore.ts
 
-import { writable, derived, get } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 import type { User } from './types';
 import { initialUsers } from './usersData';
+import { browser } from '$app/environment';
 
-export const users = (() => {
-	const { subscribe, set, update } = writable<User[]>(initialUsers);
+// Callbacks
+let onUsersChange: ((users: User[]) => void) | null = null;
+let onSelectedPlayersChange: ((players: string[]) => void) | null = null;
+let onCurrentUserChange: ((login: string | null) => void) | null = null;
 
-	function getUserByLogin(login: string): User | undefined {
-		const userList = get({ subscribe });
-		return userList.find(user => user.login === login);
+// Store de base pour les utilisateurs
+const baseUsers = writable<User[]>(initialUsers);
+
+// Store dérivé pour les utilisateurs avec callbacks
+export const users = derived(baseUsers, ($users) => {
+	if (onUsersChange) {
+		onUsersChange($users);
 	}
+	return $users;
+});
 
-	function getCurrentUser(): User | undefined {
-		const userList = get({ subscribe });
-		return userList.find(user => user.isCurrentUser);
-	}
-
-	function setCurrentUser(login: string | null) {
-		update(userList =>
-			userList.map(user => ({
-				...user,
-				isCurrentUser: login ? user.login === login : false
-			}))
-		);
-	}
+// Store pour les joueurs sélectionnés
+export const selectedPlayers = (() => {
+	const { subscribe, set, update } = writable<string[]>([]);
 
 	return {
 		subscribe,
-		set,
+		set: (players: string[]) => {
+			set(players);
+			if (onSelectedPlayersChange) {
+				onSelectedPlayersChange(players);
+			}
+		},
 		update,
-		getUserByLogin,
-		setCurrentUser,
-		getCurrentUser
+		setSelectedPlayersCallback: (callback: (players: string[]) => void) => {
+			onSelectedPlayersChange = callback;
+			// Appeler le callback immédiatement avec les joueurs actuels
+			subscribe(players => {
+				callback(players);
+			})();
+		}
 	};
 })();
 
-// Joueurs sélectionnés (ceux qui participent à la partie)
-export const selectedPlayers = writable<string[]>([]);
+// Fonctions utilitaires pour les utilisateurs
+export function getUserByLogin(login: string): User | undefined {
+	let foundUser: User | undefined;
+	baseUsers.subscribe(users => {
+		foundUser = users.find(user => user.login === login);
+	})();
+	return foundUser;
+}
 
-// Fonction utilitaire pour les initiales et la couleur
+export function getCurrentUser(): User | undefined {
+	let currentUser: User | undefined;
+	baseUsers.subscribe(users => {
+		currentUser = users.find(user => user.isCurrentUser);
+	})();
+	return currentUser;
+}
+
+export function setCurrentUser(login: string | null) {
+	baseUsers.update(userList => {
+		const updatedList = userList.map(user => ({
+			...user,
+			isCurrentUser: login ? user.login === login : false
+		}));
+		if (onCurrentUserChange) {
+			onCurrentUserChange(login);
+		}
+		return updatedList;
+	});
+}
+
+export function setUsers(users: User[]) {
+	baseUsers.set(users);
+}
+
+export function updateUsers(updater: (users: User[]) => User[]) {
+	baseUsers.update(updater);
+}
+
+// Fonctions de configuration des callbacks
+export function setUsersCallback(callback: (users: User[]) => void) {
+	onUsersChange = callback;
+	// Appeler le callback immédiatement avec les utilisateurs actuels
+	baseUsers.subscribe(users => {
+		callback(users);
+	})();
+}
+
+export function setCurrentUserCallback(callback: (login: string | null) => void) {
+	onCurrentUserChange = callback;
+	// Appeler le callback immédiatement avec l'utilisateur courant
+	baseUsers.subscribe(users => {
+		const currentUser = users.find(user => user.isCurrentUser);
+		callback(currentUser?.login || null);
+	})();
+}
+
+// Fonctions utilitaires
 export function getPhotoPlaceholder(user: User) {
 	if (!user.firstName || !user.lastName) return null;
 
@@ -57,20 +118,19 @@ function stringToColor(str: string): string {
 	return `#${color.toString(16).padStart(6, '0')}`;
 }
 
-// Exemple de fonction pour nommer un maire
+// Fonctions de gestion des rôles
 export function setMayor(login: string, isMayor: boolean) {
-	users.update(userList =>
-		userList.map(user =>
+	baseUsers.update(userList => {
+		return userList.map(user =>
 			user.login === login ? { ...user, isMayor } : { ...user, isMayor: false }
-		)
-	);
+		);
+	});
 }
 
-// Fonction pour marquer un joueur comme éliminé
 export function eliminatePlayer(login: string) {
-	users.update(userList =>
-		userList.map(user =>
+	baseUsers.update(userList => {
+		return userList.map(user =>
 			user.login === login ? { ...user, isAlive: false } : user
-		)
-	);
+		);
+	});
 }

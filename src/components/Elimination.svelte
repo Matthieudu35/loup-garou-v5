@@ -1,7 +1,8 @@
 <script lang="ts">
+    import { onMount } from 'svelte';
     import { eliminationStore, type Elimination } from '../stores/eliminationStore';
-    import { gameState } from '../stores/gameStore';
-    import { users } from '../stores/usersStore';
+    import { gameState } from '../stores/gameState';
+    import { users, selectedPlayers, getUserByLogin } from '../stores/usersStore';
     
     // Phase actuelle
     $: currentTheme = $gameState.phase === 'nuit' ? 'nuit' : 'jour';
@@ -20,7 +21,7 @@
     }
     
     const resurrectPlayer = (playerLogin: string) => {
-        const player = users.getUserByLogin(playerLogin);
+        const player = getUserByLogin(playerLogin);
         if (confirm(`Voulez-vous vraiment ressusciter ${player?.firstName} ${player?.lastName || ''} ?`)) {
             eliminationStore.resurrect(playerLogin);
         }
@@ -44,7 +45,7 @@
         {:else}
             <ul class="eliminated-list">
                 {#each $eliminationStore as elimination}
-                    {@const player = users.getUserByLogin(elimination.playerLogin)}
+                    {@const player = getUserByLogin(elimination.playerLogin)}
                     <li class="eliminated-player">
                         <div class="player-info">
                             <span class="player-name">

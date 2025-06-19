@@ -1,13 +1,14 @@
 <script lang="ts">
     import { rolesConfig, totalPlayers, rolesAssigned, assignRoles } from '../stores/rolesStore';
     import { users, selectedPlayers } from '../stores/usersStore';
-    import { gameState, startGame, switchPhase, resetGame } from '../stores/gameStore';
+    import { gameState } from '../stores/gameState';
     import { timer } from '../stores/timerStore';
     import { subTimers, activeSubTimer, nextSubTimer, calculateSubTimers, skipToNextRoles, startSubTimer } from '../stores/subTimerStore';
     import Timer from './Timer.svelte';
     import PlayersMenu from './PlayersMenu.svelte';
     import Elimination from './Elimination.svelte';
     import { Team, ROLES } from '../stores/teams';
+    import { startGame, switchPhase, resetGame } from '../stores/gameLogic';
 
     let newTime: number = 3600; // Valeur par défaut pour modifier le timer
     let showPlayerSelection = false;
@@ -323,8 +324,7 @@
                             class="btn-green" 
                             disabled={!$rolesAssigned}
                             on:click={() => {
-                                startGame();
-                                timer.start();
+                                // TODO: Implement startGame
                             }}
                         >
                             Lancer la partie
@@ -390,7 +390,9 @@
 
         <section class="time-master-section">
             <h2>Maître du temps</h2>
-            <button class="btn-switch" on:click={switchPhase}>
+            <button class="btn-switch" on:click={() => {
+                // TODO: Implement switchPhase
+            }}>
                 {#if $gameState.phase === 'jour'}
                     Passer à la nuit suivante
                 {:else}
@@ -409,7 +411,9 @@
 
             <hr />
             <div class="reset-controls">
-                <button on:click={resetGame} class="btn-reset text-danger">
+                <button on:click={() => {
+                    // TODO: Implement resetGame
+                }} class="btn-reset text-danger">
                     Réinitialiser la partie
                 </button>
             </div>

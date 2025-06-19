@@ -1,8 +1,9 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { gameState } from '../stores/gameStore';
+    import { gameState } from '../stores/gameState';
     import { users } from '../stores/usersStore';
     import { voteCounts } from '../stores/dayVoteStore';
+    import { getUserByLogin } from '../stores/gameLogic';
     import { fade, scale } from 'svelte/transition';
     import type { User } from '../stores/types';
 
@@ -16,7 +17,7 @@
             .map(([login, count]) => ({
                 login,
                 count,
-                user: users.getUserByLogin(login)
+                user: getUserByLogin(login)
             }))
             .sort((a, b) => a.count - b.count);
     }

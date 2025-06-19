@@ -1,6 +1,7 @@
 import { writable, derived, get } from 'svelte/store';
-import { users, selectedPlayers } from './usersStore';
+import { users, selectedPlayers, updateUsers } from './usersStore';
 import { browser } from '$app/environment';
+import type { User } from './types';
 
 export interface RolesConfig {
   loupGarou: number;
@@ -40,7 +41,40 @@ const initialRoles: RolesConfig = {
   villageois: 33
 };
 
-export const rolesConfig = writable<RolesConfig>(initialRoles);
+// Callback pour les changements de configuration des rôles
+let onRolesConfigChange: ((config: RolesConfig) => void) | null = null;
+
+// Store de base pour la configuration des rôles
+const baseRolesConfig = writable<RolesConfig>(initialRoles);
+
+// Store avec méthodes set et update
+export const rolesConfig = (() => {
+    const { subscribe } = derived(baseRolesConfig, ($config) => {
+        if (onRolesConfigChange) {
+            onRolesConfigChange($config);
+        }
+        return $config;
+    });
+
+    return {
+        subscribe,
+        set: (config: RolesConfig) => {
+            baseRolesConfig.set(config);
+        },
+        update: (updater: (config: RolesConfig) => RolesConfig) => {
+            baseRolesConfig.update(updater);
+        }
+    };
+})();
+
+// Fonction pour configurer le callback de changement de configuration
+export function setRolesConfigCallback(callback: (config: RolesConfig) => void) {
+    onRolesConfigChange = callback;
+    // Appeler le callback immédiatement avec l'état actuel
+    baseRolesConfig.subscribe(config => {
+        callback(config);
+    })();
+}
 
 export const totalPlayers = derived(rolesConfig, $rolesConfig =>
   Object.values($rolesConfig).reduce((sum, count) => sum + count, 0)
@@ -51,13 +85,39 @@ export const isSelectionComplete = derived(
   ([$selectedPlayers, $totalPlayers]) => $selectedPlayers.length === $totalPlayers
 );
 
-const storedRolesAssigned = browser ? localStorage.getItem('rolesAssigned') === 'true' : false;
-export const rolesAssigned = writable(storedRolesAssigned);
+// Callback pour les changements d'état d'attribution des rôles
+let onRolesAssignedChange: ((assigned: boolean) => void) | null = null;
 
-if (browser) {
-  rolesAssigned.subscribe(value => {
-    localStorage.setItem('rolesAssigned', value.toString());
-  });
+// Store de base pour l'état d'attribution des rôles
+const baseRolesAssigned = writable(false);
+
+// Store avec méthodes set et update
+export const rolesAssigned = (() => {
+    const { subscribe } = derived(baseRolesAssigned, ($assigned) => {
+        if (onRolesAssignedChange) {
+            onRolesAssignedChange($assigned);
+        }
+        return $assigned;
+    });
+
+    return {
+        subscribe,
+        set: (assigned: boolean) => {
+            baseRolesAssigned.set(assigned);
+        },
+        update: (updater: (assigned: boolean) => boolean) => {
+            baseRolesAssigned.update(updater);
+        }
+    };
+})();
+
+// Fonction pour configurer le callback de changement d'état d'attribution
+export function setRolesAssignedCallback(callback: (assigned: boolean) => void) {
+    onRolesAssignedChange = callback;
+    // Appeler le callback immédiatement avec l'état actuel
+    baseRolesAssigned.subscribe(assigned => {
+        callback(assigned);
+    })();
 }
 
 export function assignRoles() {
@@ -82,7 +142,7 @@ export function assignRoles() {
     villageois: 'Villageois'
   };
 
-  Object.entries(get(rolesConfig)).forEach(([role, count]) => {
+  Object.entries(get(baseRolesConfig)).forEach(([role, count]) => {
     for (let i = 0; i < count; i++) {
       rolesToAssign.push(roleDisplayNames[role as keyof RolesConfig] || role);
     }
@@ -97,7 +157,7 @@ export function assignRoles() {
   const selectedPlayersList = get(selectedPlayers);
 
   // Mettre à jour les utilisateurs
-  users.update(usersList =>
+  updateUsers(usersList => 
     usersList.map(user => {
       const index = selectedPlayersList.indexOf(user.login);
       if (index !== -1) {
@@ -120,7 +180,7 @@ export function assignRoles() {
   console.log('%cENFANTS SAUVAGES:', 'background: #e74c3c; color: white; font-size: 16px; padding: 5px;');
   console.log('%c' + JSON.stringify(enfantsSauvages, null, 2), 'color: #e74c3c; font-size: 14px;');
 
-  rolesAssigned.set(true);
+  baseRolesAssigned.set(true);
 }
 
 export function resetRoles() {
@@ -129,7 +189,6 @@ export function resetRoles() {
     usersList.forEach(user => {
       localStorage.removeItem(`role_${user.login}`);
     });
-    localStorage.removeItem('rolesAssigned');
-    rolesAssigned.set(false);
+    baseRolesAssigned.set(false);
   }
 }

@@ -2,7 +2,7 @@
 	import { allies, getStructuredAssociations, removeAssociation } from '../../stores/alliesStore';
 	import { currentUser } from '../../stores/authStore';
 	import { Team, getTeamByRoleName } from '../../stores/teams';
-	import { gameState } from '../../stores/gameStore';
+	import { gameState } from '../../stores/gameState';
 	import { users } from '../../stores/usersStore';
 	import { eliminationStore } from '../../stores/eliminationStore';
 	import { isCurrentPlayerWolf, chienLoupStates } from '../../stores/chienLoupStore';

@@ -1,19 +1,107 @@
 import { writable, derived, get } from 'svelte/store';
+import { browser } from '$app/environment';
 
 // Type pour stocker les votes : login du votant → login de la cible
 type VoteMap = Record<string, string>;
 
-export const dayVotes = writable<VoteMap>({});
-export const isSecondRound = writable<boolean>(false);
-export const secondRoundCandidates = writable<string[]>([]);
+// Callbacks
+let onDayVotesChange: ((votes: VoteMap) => void) | null = null;
+let onSecondRoundChange: ((isSecondRound: boolean, candidates: string[]) => void) | null = null;
+
+// Store de base pour les votes du jour
+const baseDayVotes = writable<VoteMap>({});
+
+// Store avec méthodes set et update
+export const dayVotes = (() => {
+    const { subscribe } = derived(baseDayVotes, ($votes) => {
+        if (onDayVotesChange) {
+            onDayVotesChange($votes);
+        }
+        return $votes;
+    });
+
+    return {
+        subscribe,
+        set: (votes: VoteMap) => {
+            baseDayVotes.set(votes);
+        },
+        update: (updater: (votes: VoteMap) => VoteMap) => {
+            baseDayVotes.update(updater);
+        }
+    };
+})();
+
+// Store de base pour le second tour
+const baseIsSecondRound = writable<boolean>(false);
+
+// Store avec méthodes set et update
+export const isSecondRound = (() => {
+    const { subscribe } = derived(baseIsSecondRound, ($isSecondRound) => {
+        if (onSecondRoundChange) {
+            onSecondRoundChange($isSecondRound, get(baseSecondRoundCandidates));
+        }
+        return $isSecondRound;
+    });
+
+    return {
+        subscribe,
+        set: (value: boolean) => {
+            baseIsSecondRound.set(value);
+        },
+        update: (updater: (value: boolean) => boolean) => {
+            baseIsSecondRound.update(updater);
+        }
+    };
+})();
+
+// Store de base pour les candidats du second tour
+const baseSecondRoundCandidates = writable<string[]>([]);
+
+// Store avec méthodes set et update
+export const secondRoundCandidates = (() => {
+    const { subscribe } = derived(baseSecondRoundCandidates, ($candidates) => {
+        if (onSecondRoundChange) {
+            onSecondRoundChange(get(baseIsSecondRound), $candidates);
+        }
+        return $candidates;
+    });
+
+    return {
+        subscribe,
+        set: (candidates: string[]) => {
+            baseSecondRoundCandidates.set(candidates);
+        },
+        update: (updater: (candidates: string[]) => string[]) => {
+            baseSecondRoundCandidates.update(updater);
+        }
+    };
+})();
+
+// Fonction pour configurer le callback de changement de votes
+export function setDayVotesCallback(callback: (votes: VoteMap) => void) {
+    onDayVotesChange = callback;
+    // Appeler le callback immédiatement avec l'état actuel
+    baseDayVotes.subscribe(votes => {
+        callback(votes);
+    })();
+}
+
+// Fonction pour configurer le callback de changement de second tour
+export function setSecondRoundCallback(callback: (isSecondRound: boolean, candidates: string[]) => void) {
+    onSecondRoundChange = callback;
+    // Appeler le callback immédiatement avec l'état actuel
+    baseIsSecondRound.subscribe(isSecondRound => {
+        callback(isSecondRound, get(baseSecondRoundCandidates));
+    })();
+}
 
 // Enregistrer ou modifier un vote
 export function setDayVote(voterLogin: string, targetLogin: string) {
     let isValidTarget = true;
     
     // Vérifier si on est au second tour
-    if (get(isSecondRound)) {
-        const candidates = get(secondRoundCandidates);
+    if (get(baseIsSecondRound)) {
+        const candidates = get(baseSecondRoundCandidates);
         isValidTarget = candidates.includes(targetLogin);
     }
 
@@ -23,19 +111,22 @@ export function setDayVote(voterLogin: string, targetLogin: string) {
         return;
     }
     
-    dayVotes.update(votes => ({ ...votes, [voterLogin]: targetLogin }));
+    baseDayVotes.update(votes => ({
+        ...votes,
+        [voterLogin]: targetLogin
+    }));
 }
 
 // Réinitialiser les votes du jour
 export function resetDayVotes() {
-    dayVotes.set({});
+    baseDayVotes.set({});
 }
 
 // Réinitialiser tous les votes et le second tour
 export function resetAll() {
-    dayVotes.set({});
-    isSecondRound.set(false);
-    secondRoundCandidates.set([]);
+    baseDayVotes.set({});
+    baseIsSecondRound.set(false);
+    baseSecondRoundCandidates.set([]);
 }
 
 // Store dérivé : comptage des voix par joueur
@@ -61,7 +152,7 @@ function getTopTiedCandidates(voteCountMap: Record<string, number>): string[] {
 // Obtenir le résultat du vote et détecter les égalités
 export function getVoteResult(): { winner: string | null, isTie: boolean, tiedCandidates: string[] } {
     const voteCountMap: Record<string, number> = {};
-    const votesSnapshot = get(dayVotes);
+    const votesSnapshot = get(baseDayVotes);
 
     for (const target of Object.values(votesSnapshot)) {
         voteCountMap[target] = (voteCountMap[target] || 0) + 1;
@@ -82,6 +173,6 @@ export function getVoteResult(): { winner: string | null, isTie: boolean, tiedCa
 // Démarrer un second tour avec les candidats donnés
 export function startSecondRound(candidates: string[]) {
     resetDayVotes();  // Réinitialiser les votes
-    isSecondRound.set(true);  // Activer le mode second tour
-    secondRoundCandidates.set(candidates);  // Définir les candidats éligibles
+    baseIsSecondRound.set(true);  // Activer le mode second tour
+    baseSecondRoundCandidates.set(candidates);  // Définir les candidats éligibles
 }

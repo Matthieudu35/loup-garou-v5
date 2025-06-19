@@ -4,7 +4,7 @@
     import PlayerInterface from '../lib/Players/Index.svelte';
     import Timer from '../components/Timer.svelte';
     import PlayersMenu from '../components/PlayersMenu.svelte';
-    import { gameState } from '../stores/gameStore';
+    import { gameState } from '../stores/gameState';
     import MayorElection from '../lib/Mayor/MayorElection.svelte';
     import SecondRoundAnnouncement from '../lib/Mayor/SecondRoundAnnouncement.svelte';
     import VoteCountdown from '../components/VoteCountdown.svelte';
@@ -13,6 +13,8 @@
     let username = '';
     let password = '';
     let isAlliesMenuOpen = false;
+    let isLoading = false;
+    let errorMessage = '';
 
     type Theme = 'jour' | 'nuit';
 
@@ -23,11 +25,20 @@
     // Le thème des mémos est l'inverse du menu
     $: memoTheme = (menuTheme === 'jour' ? 'nuit' : 'jour') as Theme;
 
-    function handleLogin() {
-        if (login(username, password)) {
-            // Connexion automatique via le store
-        } else {
-            alert("Identifiants incorrects");
+    async function handleLogin() {
+        isLoading = true;
+        errorMessage = '';
+        
+        try {
+            const success = await login(username, password);
+            if (!success) {
+                errorMessage = "Identifiants incorrects";
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+            errorMessage = "Erreur de connexion";
+        } finally {
+            isLoading = false;
         }
     }
 </script>
@@ -78,6 +89,7 @@
                     placeholder="Identifiant (pnom)" 
                     class="w-full p-3 rounded focus:outline-none input-theme text-base"
                     aria-label="Identifiant"
+                    disabled={isLoading}
                 />
                 <input 
                     type="password" 
@@ -85,9 +97,17 @@
                     placeholder="Mot de passe (date de naissance : jjmmaaaa)" 
                     class="w-full p-3 rounded focus:outline-none input-theme text-base"
                     aria-label="Mot de passe"
+                    disabled={isLoading}
                 />
-                <button type="submit" class="w-full bg-blue-500 text-white p-3 rounded hover:bg-blue-600 text-base">
-                    Se connecter
+                {#if errorMessage}
+                    <p class="text-red-500 text-sm">{errorMessage}</p>
+                {/if}
+                <button 
+                    type="submit" 
+                    class="w-full bg-blue-500 text-white p-3 rounded hover:bg-blue-600 text-base disabled:opacity-50"
+                    disabled={isLoading}
+                >
+                    {isLoading ? 'Connexion...' : 'Se connecter'}
                 </button>
             </form>
         </div>

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { gameState } from '../../stores/gameStore';
+    import { gameState } from '../../stores/gameState';
     import { fade, scale } from 'svelte/transition';
 
     onMount(() => {

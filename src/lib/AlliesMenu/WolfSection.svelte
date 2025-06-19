@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { currentUser } from '../../stores/authStore';
-	import { gameState } from '../../stores/gameStore';
+	import { gameState } from '../../stores/gameState';
 	import { Team, getTeamByRoleName } from '../../stores/teams';
 	import { users } from '../../stores/usersStore';
 	import { eliminationStore } from '../../stores/eliminationStore';

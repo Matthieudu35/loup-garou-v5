@@ -3,13 +3,14 @@
 	import type { User } from '../stores/types';
 
 	// Stores
-	import { gameState } from '../stores/gameStore';
+	import { gameState } from '../stores/gameState';
 	import { currentUser } from '../stores/authStore';
 	import { users, selectedPlayers, getPhotoPlaceholder, setMayor } from '../stores/usersStore';
 	import { rolesAssigned } from '../stores/rolesStore';
 	import { eliminationStore } from '../stores/eliminationStore';
 	import { memos } from '../stores/memosStore';
 	import { allies, addAssociation } from '../stores/alliesStore';
+	import { addMemo } from '../stores/gameLogic';
 
 	// Components
 	// ConfirmationModal a été supprimé temporairement
@@ -178,7 +179,7 @@
 			// Vérifier que selectedPlayer et currentUser existent
 			if (memo && selectedPlayer && $currentUser) {
 				const memoText = `[${selectedPlayer.firstName}] ${memo}`;
-				memos.addMemo(memoText);
+				addMemo(memo);
 				textarea.value = '';
 			}
 		}

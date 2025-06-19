@@ -1,60 +1,54 @@
-import { writable, get } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
-import { users } from './usersStore';
 import type { User } from './types';
 
 // Define a type for User without password
 type UserWithoutPassword = Omit<User, 'password'>;
 
-// Création du store avec l'utilisateur initial
-export const currentUser = writable<UserWithoutPassword | null>(null);
+// Callbacks
+let onCurrentUserChange: ((login: string | null) => void) | null = null;
+let onUserStateChange: ((user: UserWithoutPassword | null) => void) | null = null;
 
-// Vérifie si localStorage est disponible et charge l'utilisateur enregistré
-function loadUser() {
-    if (browser) {
-        try {
-            const storedUser = localStorage.getItem('currentUser');
-            if (storedUser) {
-                const userData = JSON.parse(storedUser);
-                users.setCurrentUser(userData.login);
-                return userData;
-            }
-        } catch (error) {
-            console.warn('Could not load user from localStorage:', error);
-        }
+// Store de base pour l'utilisateur courant
+const baseCurrentUser = writable<UserWithoutPassword | null>(null);
+
+// Store dérivé avec callbacks
+export const currentUser = derived(baseCurrentUser, ($user) => {
+    if (onUserStateChange) {
+        onUserStateChange($user);
     }
-    return null;
-}
+    return $user;
+});
 
-// Initialisation de l'utilisateur
-if (browser) {
-    currentUser.set(loadUser());
-}
+// URL de l'API
+const API_URL = browser && window.location.hostname === 'localhost' 
+  ? 'http://localhost:3000' 
+  : 'https://proactive-balance-production.up.railway.app';
 
 // Fonction de connexion
-export function login(login: string, password: string): boolean {
+export async function login(login: string, password: string): Promise<boolean> {
     try {
-        const foundUser = users.getUserByLogin(login);
-        if (!foundUser) {
-            console.warn('User not found:', login);
-            return false;
-        }
+        const response = await fetch(`${API_URL}/api/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ login, password }),
+        });
+
+        const data = await response.json();
         
-        if (foundUser.password !== password) {
-            console.warn('Invalid password for user:', login);
+        if (!data.success) {
+            console.warn('Login failed:', data.message);
             return false;
         }
 
-        // Supprimer le mot de passe avant de stocker l'utilisateur
-        const { password: _, ...userData } = foundUser;
-        currentUser.set(userData);
+        // Mettre à jour le store avec l'utilisateur
+        baseCurrentUser.set(data.user);
         
-        // Marquer l'utilisateur comme courant dans la liste des utilisateurs
-        users.setCurrentUser(login);
-
-        if (browser) {
-            localStorage.setItem('currentUser', JSON.stringify(userData));
-            localStorage.setItem('currentUserLogin', login);
+        // Notifier le changement d'utilisateur courant
+        if (onCurrentUserChange) {
+            onCurrentUserChange(login);
         }
 
         return true;
@@ -66,13 +60,40 @@ export function login(login: string, password: string): boolean {
 
 // Fonction de déconnexion
 export function logout(): void {
-    currentUser.set(null);
-    users.setCurrentUser(null);
-    if (browser) {
-        try {
-            localStorage.removeItem('currentUser');
-        } catch (error) {
-            console.warn('Logout error:', error);
+    baseCurrentUser.set(null);
+    if (onCurrentUserChange) {
+        onCurrentUserChange(null);
+    }
+}
+
+// Fonction pour configurer le callback de changement d'utilisateur
+export function setCurrentUserCallback(callback: (login: string | null) => void) {
+    onCurrentUserChange = callback;
+    // Appeler le callback immédiatement avec l'utilisateur courant
+    baseCurrentUser.subscribe(user => {
+        callback(user?.login || null);
+    })();
+}
+
+// Fonction pour configurer le callback de changement d'état de l'utilisateur
+export function setUserStateCallback(callback: (user: UserWithoutPassword | null) => void) {
+    onUserStateChange = callback;
+    // Appeler le callback immédiatement avec l'état actuel
+    baseCurrentUser.subscribe(user => {
+        callback(user);
+    })();
+}
+
+// Fonction pour mettre à jour l'utilisateur courant depuis l'état du jeu
+export function updateCurrentUserFromGameState(users: User[]) {
+    const currentUserLogin = users.find(u => u.isCurrentUser)?.login;
+    if (currentUserLogin) {
+        const userData = users.find(u => u.login === currentUserLogin);
+        if (userData) {
+            const { password: _, ...userWithoutPassword } = userData;
+            baseCurrentUser.set(userWithoutPassword);
         }
+    } else {
+        baseCurrentUser.set(null);
     }
 } 

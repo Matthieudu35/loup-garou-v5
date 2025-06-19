@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { gameState } from '../../stores/gameStore';
+	import { gameState } from '../../stores/gameState';
 	import { users, selectedPlayers } from '../../stores/usersStore';
 	import { eliminationStore } from '../../stores/eliminationStore';
 	import { dayVotes, setDayVote, isSecondRound, secondRoundCandidates } from '../../stores/dayVoteStore';
+	import { getUserByLogin } from '../../stores/gameLogic';
 	import type { User } from '../../stores/types';
 
 	export let currentUser: User;
@@ -79,7 +80,7 @@
 		{/if}
 
 		{#if hasVoted && votedFor}
-			{@const votedPlayer = users.getUserByLogin(votedFor)}
+			{@const votedPlayer = getUserByLogin(votedFor)}
 			{#if votedPlayer}
 				<p>Vous avez déjà voté pour {votedPlayer.firstName} {votedPlayer.lastName}.</p>
 			{:else}

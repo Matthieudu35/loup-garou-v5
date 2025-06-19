@@ -1,7 +1,11 @@
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import { users } from './usersStore';
 import { currentUser } from './authStore';
 import { Team, getTeamByRoleName } from './teams';
+import { gameState, type GameState } from './gameState';
+import { browser } from '$app/environment';
+import { setCurrentUserCallback, setUserStateCallback } from './authStore';
+import type { User } from './types';
 
 interface ChienLoupState {
   login: string;
@@ -9,93 +13,133 @@ interface ChienLoupState {
   hasChosen: boolean;
 }
 
-// Store pour suivre l'état de TOUS les Chien-Loups (clé = login)
-export const chienLoupStates = writable<Record<string, ChienLoupState>>({});
+// Callbacks
+let onChienLoupStatesChange: ((states: Record<string, ChienLoupState>) => void) | null = null;
+let onUserTeamChange: ((login: string, team: Team) => void) | null = null;
+
+// Store de base pour les états des Chien-Loups
+const baseChienLoupStates = writable<Record<string, ChienLoupState>>({});
+
+// Store avec méthodes set et update
+export const chienLoupStates = (() => {
+    const { subscribe } = derived(baseChienLoupStates, ($states) => {
+        if (onChienLoupStatesChange) {
+            onChienLoupStatesChange($states);
+        }
+        return $states;
+    });
+
+    return {
+        subscribe,
+        set: (states: Record<string, ChienLoupState>) => {
+            baseChienLoupStates.set(states);
+        },
+        update: (updater: (states: Record<string, ChienLoupState>) => Record<string, ChienLoupState>) => {
+            baseChienLoupStates.update(updater);
+        }
+    };
+})();
+
+// Fonction pour configurer le callback de changement d'état
+export function setChienLoupStatesCallback(callback: (states: Record<string, ChienLoupState>) => void) {
+    onChienLoupStatesChange = callback;
+    // Appeler le callback immédiatement avec l'état actuel
+    baseChienLoupStates.subscribe(states => {
+        callback(states);
+    })();
+}
+
+// Fonction pour configurer le callback de changement d'équipe
+export function setUserTeamCallback(callback: (login: string, team: Team) => void) {
+    onUserTeamChange = callback;
+}
 
 // Fonction pour mettre à jour le camp du Chien-Loup
 export function setChienLoupCamp(login: string, camp: 'loups' | 'village') {
-  chienLoupStates.update(states => ({
-    ...states,
-    [login]: { login, camp, hasChosen: true }
-  }));
+    baseChienLoupStates.update(states => {
+        const newStates = {
+            ...states,
+            [login]: { login, camp, hasChosen: true }
+        };
+        return newStates;
+    });
 
-  // Mettre à jour l'équipe du joueur
-  if (camp === 'loups') {
-    // Mettre à jour l'équipe pour qu'il soit considéré comme un loup
-    users.update(usersList =>
-      usersList.map(user => 
-        user.login === login 
-          ? { ...user, team: Team.WEREWOLVES }
-          : user
-      )
-    );
-  }
+    // Notifier le changement d'équipe si nécessaire
+    if (camp === 'loups' && onUserTeamChange) {
+        onUserTeamChange(login, Team.WEREWOLVES);
+    }
 }
 
 // Fonction pour réinitialiser l'état de tous les Chien-Loups
 export function resetChienLoupStates() {
-  chienLoupStates.set({});
+    baseChienLoupStates.set({});
 }
 
 // Store dérivé pour obtenir l'état du chien-loup courant
 export const currentChienLoupState = derived(
-  [currentUser, chienLoupStates],
-  ([$currentUser, $chienLoupStates]) =>
-    $currentUser ? $chienLoupStates[$currentUser.login] : undefined
+    [chienLoupStates],
+    ([$chienLoupStates]) => {
+        const currentLogin = getCurrentUserLogin();
+        return currentLogin ? $chienLoupStates[currentLogin] : undefined;
+    }
 );
+
+// Fonction utilitaire pour obtenir le login de l'utilisateur courant
+function getCurrentUserLogin(): string | null {
+    let currentLogin: string | null = null;
+    // Cette fonction devrait être remplacée par une meilleure méthode d'accès à l'utilisateur courant
+    return currentLogin;
+}
 
 // Store dérivé pour vérifier si le joueur courant est un Chien-Loup
 export const isCurrentPlayerChienLoup = derived(
-  [currentUser],
-  ([$currentUser]) => {
-    if (!$currentUser) return false;
-    const roleLC = $currentUser.role?.toLowerCase() || '';
-    return (roleLC === 'chien-loup' || roleLC === 'chienloup' || roleLC === 'chien loup');
-  }
+    [currentChienLoupState],
+    ([$currentChienLoupState]) => {
+        if (!$currentChienLoupState) return false;
+        return true;
+    }
 );
 
 // Fonction utilitaire pour vérifier si un rôle est celui d'un loup
 export function isWolfRole(role: string): boolean {
-  if (!role) return false;
-  const roleLC = role.toLowerCase();
-  const isWolf = /loup[\s-]?garou|loup[\s-]?blanc|grand[\s-]?m[ée]chant[\s-]?loup|infect[\s-]?p[èe]re[\s-]?des[\s-]?loups|loup[\s-]?solitaire/i.test(roleLC);
-  
-  console.log('isWolfRole Debug:', {
-    role,
-    roleLC,
-    isWolf
-  });
-  
-  return isWolf;
+    if (!role) return false;
+    const roleLC = role.toLowerCase();
+    const isWolf = /loup[\s-]?garou|loup[\s-]?blanc|grand[\s-]?m[ée]chant[\s-]?loup|infect[\s-]?p[èe]re[\s-]?des[\s-]?loups|loup[\s-]?solitaire/i.test(roleLC);
+    
+    console.log('isWolfRole Debug:', {
+        role,
+        roleLC,
+        isWolf
+    });
+    
+    return isWolf;
 }
 
 // Store dérivé pour vérifier si le joueur courant est un loup (après avoir choisi)
 export const isCurrentPlayerWolf = derived(
-  [currentUser, chienLoupStates],
-  ([$currentUser, $chienLoupStates]) => {
-    if (!$currentUser) return false;
-    
-    // Vérifier si le joueur est un chien-loup qui a choisi
-    const isChienLoup = ($currentUser.role?.toLowerCase() === 'chien-loup' || 
-                       $currentUser.role?.toLowerCase() === 'chienloup' || 
-                       $currentUser.role?.toLowerCase() === 'chien loup');
-    
-    if (isChienLoup) {
-      const state = $chienLoupStates[$currentUser.login];
-     
-      
-      if (state?.hasChosen) {
-        return state.camp === 'loups';
-      }
-      return false; // Si le chien-loup n'a pas choisi, il n'est pas encore un loup
+    [currentChienLoupState],
+    ([$currentChienLoupState]) => {
+        if (!$currentChienLoupState) return false;
+        
+        if ($currentChienLoupState.hasChosen) {
+            return $currentChienLoupState.camp === 'loups';
+        }
+        
+        return false;
     }
-    
-    // Si ce n'est pas un chien-loup, vérification normale du rôle
-    const team = getTeamByRoleName($currentUser.role || '');
-    const isWolf = team === Team.WEREWOLVES || team === Team.SOLO;
-    
-    
-    
-    return isWolf;
-  }
-); 
+);
+
+// Dans initializeBrowserSubscriptions
+setCurrentUserCallback((login) => {
+    gameState.update((state: GameState) => ({
+        ...state,
+        users: state.users.map((u: User) => ({
+            ...u,
+            isCurrentUser: u.login === login
+        }))
+    }));
+});
+
+setUserStateCallback((user) => {
+    // Gérer les changements d'état de l'utilisateur si nécessaire
+}); 

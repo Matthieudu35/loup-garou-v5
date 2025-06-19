@@ -1,18 +1,77 @@
 import { writable, derived, get } from 'svelte/store';
 import { users } from './usersStore';
 import { eliminationStore } from './eliminationStore';
-import { gameState } from './gameStore';
+import { browser } from '$app/environment';
 
-// Store pour les votes des loups
+// Callbacks
+let onLoupVotesChange: ((votes: Record<string, string>) => void) | null = null;
+let onLoupVictimChange: ((victim: string | null) => void) | null = null;
+
+// Store de base pour les votes des loups
 // Format: { [loginLoup]: loginVictime }
-export const loupVotes = writable<Record<string, string>>({});
+const baseLoupVotes = writable<Record<string, string>>({});
 
-// Store pour la victime des loups
-export const loupVictim = writable<string | null>(null);
+// Store avec méthodes set et update
+export const loupVotes = (() => {
+    const { subscribe } = derived(baseLoupVotes, ($votes) => {
+        if (onLoupVotesChange) {
+            onLoupVotesChange($votes);
+        }
+        return $votes;
+    });
+
+    return {
+        subscribe,
+        set: (votes: Record<string, string>) => {
+            baseLoupVotes.set(votes);
+        },
+        update: (updater: (votes: Record<string, string>) => Record<string, string>) => {
+            baseLoupVotes.update(updater);
+        }
+    };
+})();
+
+// Store de base pour la victime des loups
+const baseLoupVictim = writable<string | null>(null);
+
+// Store avec méthodes set et update
+export const loupVictim = (() => {
+    const { subscribe } = derived(baseLoupVictim, ($victim) => {
+        if (onLoupVictimChange) {
+            onLoupVictimChange($victim);
+        }
+        return $victim;
+    });
+
+    return {
+        subscribe,
+        set: (victim: string | null) => {
+            baseLoupVictim.set(victim);
+        }
+    };
+})();
+
+// Fonction pour configurer le callback de changement de votes
+export function setLoupVotesCallback(callback: (votes: Record<string, string>) => void) {
+    onLoupVotesChange = callback;
+    // Appeler le callback immédiatement avec l'état actuel
+    baseLoupVotes.subscribe(votes => {
+        callback(votes);
+    })();
+}
+
+// Fonction pour configurer le callback de changement de victime
+export function setLoupVictimCallback(callback: (victim: string | null) => void) {
+    onLoupVictimChange = callback;
+    // Appeler le callback immédiatement avec l'état actuel
+    baseLoupVictim.subscribe(victim => {
+        callback(victim);
+    })();
+}
 
 // Fonction pour ajouter/modifier un vote
 export function setLoupVote(loupLogin: string, victimeLogin: string) {
-    loupVotes.update(votes => ({
+    baseLoupVotes.update(votes => ({
         ...votes,
         [loupLogin]: victimeLogin
     }));
@@ -20,12 +79,12 @@ export function setLoupVote(loupLogin: string, victimeLogin: string) {
 
 // Fonction pour réinitialiser les votes à chaque nuit
 export function resetLoupVotes() {
-    loupVotes.set({});
+    baseLoupVotes.set({});
 }
 
 // Fonction pour obtenir la victime majoritaire
 export function getMajorityVictim(): string | null {
-    const votes = get(loupVotes);
+    const votes = get(baseLoupVotes);
     const voteCounts: Record<string, number> = {};
     
     // Compter les votes pour chaque victime
@@ -65,13 +124,10 @@ export const getLoupVote = (loupLogin: string) => {
 
 // Fonction pour définir la victime des loups
 export function setLoupVictim(victimLogin: string | null) {
-    loupVictim.set(victimLogin);
+    baseLoupVictim.set(victimLogin);
 }
 
-// Réinitialiser les votes au début de chaque nuit
-gameState.subscribe(state => {
-    if (state.phase === 'nuit' && state.cycleCount > 0) {
-        resetLoupVotes();
-        loupVictim.set(null); // Réinitialise la victime à chaque nuit
-    }
-});
+// Fonction pour réinitialiser la victime
+export function resetLoupVictim() {
+    baseLoupVictim.set(null);
+}

@@ -1,13 +1,14 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { gameState } from '../../stores/gameStore';
+    import { gameState } from '../../stores/gameState';
     import { users } from '../../stores/usersStore';
+    import { getUserByLogin } from '../../stores/gameLogic';
     import { fade, scale } from 'svelte/transition';
     import type { User } from '../../stores/types';
 
     export let winnerLogin: string;
     
-    let winner = users.getUserByLogin(winnerLogin);
+    let winner = getUserByLogin(winnerLogin);
 
     onMount(() => {
         // Réinitialiser showMayorElection après 5 secondes

@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { memos } from '../../stores/memosStore';
-	import { gameState } from '../../stores/gameStore';
+	import { gameState } from '../../stores/gameState';
 	import { onMount } from 'svelte';
+	import { addMemo, deleteMemo } from '../../stores/gameLogic';
 
 	// Thème actuel basé sur la phase du jeu
 	$: isNight = $gameState.phase === 'nuit';
@@ -11,23 +12,23 @@
 	let newMemo = '';
 
 	// Fonction pour ajouter un nouveau mémo
-	function addMemo() {
-		if (newMemo.trim()) {
-			memos.addMemo(newMemo.trim());
+	function handleAddMemo(memo: string) {
+		if (memo.trim()) {
+			addMemo(memo.trim());
 			newMemo = '';
 		}
 	}
 
 	// Fonction pour supprimer un mémo
-	function deleteMemo(index: number) {
-		memos.deleteMemo(index);
+	function handleDeleteMemo(index: number) {
+		deleteMemo(index);
 	}
 
 	// Gestionnaire d'événement pour la touche Entrée
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Enter' && !event.shiftKey) {
 			event.preventDefault();
-			addMemo();
+			handleAddMemo(newMemo);
 		}
 	}
 </script>
@@ -43,7 +44,7 @@
 			bind:value={newMemo}
 			on:keydown={handleKeydown}
 		></textarea>
-		<button class="add-memo-btn" on:click={addMemo}>
+		<button class="add-memo-btn" on:click={() => handleAddMemo(newMemo)}>
 			Ajouter
 		</button>
 		<p class="memo-hint">↵ pour sauvegarder</p>
@@ -56,7 +57,7 @@
 			{#each $memos as memo, index}
 				<div class="memo-item">
 					<p class="memo-text">{memo}</p>
-					<button class="delete-memo-btn" on:click={() => deleteMemo(index)}>×</button>
+					<button class="delete-memo-btn" on:click={() => handleDeleteMemo(index)}>×</button>
 				</div>
 			{/each}
 		{/if}

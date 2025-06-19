@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Stores
-	import { gameState } from '../../stores/gameStore';
+	import { gameState } from '../../stores/gameState';
 	import { currentUser } from '../../stores/authStore';
 	import { onMount, onDestroy } from 'svelte';
 	

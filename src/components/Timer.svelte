@@ -1,7 +1,8 @@
 <script lang="ts">
     import { rolesConfig, totalPlayers, rolesAssigned, assignRoles } from '../stores/rolesStore';
     import { users, selectedPlayers } from '../stores/usersStore';
-    import { gameState, startGame, switchPhase, resetGame } from '../stores/gameStore';
+    import { gameState } from '../stores/gameState';
+    import { startGame, switchPhase, resetGame } from '../stores/gameLogic';
     import { timer } from '../stores/timerStore';
     import PlayersMenu from './PlayersMenu.svelte';
     import { Team, ROLES } from '../stores/teams';

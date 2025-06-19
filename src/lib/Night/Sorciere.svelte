@@ -5,7 +5,7 @@
     import { alivePlayers } from '../../stores/chosen';
     import { timer } from '../../stores/timerStore';
     import type { User } from '../../stores/types';
-    import { gameState } from '../../stores/gameStore';
+    import { gameState } from '../../stores/gameState';
     import { writable } from 'svelte/store';
     import { loupVictim, setLoupVictim } from '../../stores/chosen';
     import { browser } from '$app/environment';

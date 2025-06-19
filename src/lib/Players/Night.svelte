@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { gameState } from '../../stores/gameStore';
+  import { gameState } from '../../stores/gameState';
   import { activeSubTimer, userHasActiveRole, subTimers } from '../../stores/subTimerStore';
   import { users } from '../../stores/usersStore';
   import { isCurrentPlayerWolf } from '../../stores/chienLoupStore';

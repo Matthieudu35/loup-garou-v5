@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { gameState } from '../stores/gameStore';
+	import { gameState } from '../stores/gameState';
+	import { initializeGameLogic } from '../stores/gameLogic';
 	import { onMount } from 'svelte';
 	import '../styles/global.css';
 
@@ -19,6 +20,7 @@
 	}
 
 	onMount(() => {
+		initializeGameLogic();
 		updateTheme();
 	});
 </script>

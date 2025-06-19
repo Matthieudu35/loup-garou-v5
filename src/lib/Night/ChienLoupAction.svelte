@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { gameState } from '../../stores/gameStore';
+  import { gameState } from '../../stores/gameState';
   import { chienLoupStates, setChienLoupCamp, isCurrentPlayerChienLoup, currentChienLoupState } from '../../stores/chienLoupStore';
   import { currentUser as currentUserStore } from '../../stores/authStore';
 

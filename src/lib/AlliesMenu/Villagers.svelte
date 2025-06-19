@@ -3,10 +3,11 @@
 	import { currentUser } from '../../stores/authStore';
 	import { Team, getTeamByRoleName, ROLES } from '../../stores/teams';
 	import { memos } from '../../stores/memosStore';
-	import { gameState } from '../../stores/gameStore';
+	import { gameState } from '../../stores/gameState';
 	import { users } from '../../stores/usersStore';
 	import { eliminationStore } from '../../stores/eliminationStore';
 	import { chienLoupStates } from '../../stores/chienLoupStore';
+	import { addMemo } from '../../stores/gameLogic';
 
 	$: login = $currentUser?.login || '';
 	$: structured = getStructuredAssociations(login, false);
@@ -33,7 +34,7 @@
 			const textarea = e.target as HTMLTextAreaElement;
 			const memo = textarea.value.trim();
 			if (memo && $currentUser) {
-				memos.addMemo(memo);
+				addMemo(memo);
 				textarea.value = '';
 			}
 		}

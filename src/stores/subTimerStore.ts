@@ -1,7 +1,7 @@
 import { writable, derived, get } from 'svelte/store';
 import { timer } from './timerStore';
-import { gameState } from './gameStore';
 import { enfantSauvageStates } from './enfantSauvageStore';
+import { browser } from '$app/environment';
 
 // Store pour indiquer si une mise à jour manuelle est en cours
 export const isManualUpdate = writable(false);
@@ -39,8 +39,40 @@ interface NightPhase {
   subPhases?: SubPhase[];
 }
 
-// Store pour la liste des sous-timers
-const subTimers = writable<SubTimer[]>([]);
+// Callback pour les changements de sous-timers
+let onSubTimersChange: ((timers: SubTimer[]) => void) | null = null;
+
+// Store de base pour la liste des sous-timers
+const baseSubTimers = writable<SubTimer[]>([]);
+
+// Store avec méthodes set et update
+const subTimers = (() => {
+    const { subscribe } = derived(baseSubTimers, ($timers) => {
+        if (onSubTimersChange) {
+            onSubTimersChange($timers);
+        }
+        return $timers;
+    });
+
+    return {
+        subscribe,
+        set: (timers: SubTimer[]) => {
+            baseSubTimers.set(timers);
+        },
+        update: (updater: (timers: SubTimer[]) => SubTimer[]) => {
+            baseSubTimers.update(updater);
+        }
+    };
+})();
+
+// Fonction pour configurer le callback de changement de sous-timers
+export function setSubTimersCallback(callback: (timers: SubTimer[]) => void) {
+    onSubTimersChange = callback;
+    // Appeler le callback immédiatement avec l'état actuel
+    baseSubTimers.subscribe(timers => {
+        callback(timers);
+    })();
+}
 
 // Store pour le sous-timer actif
 const activeSubTimer = derived(subTimers, ($subTimers) => {
@@ -120,12 +152,8 @@ function updateSubTimerTimings() {
   if (get(isManualUpdate)) return;
 
   const currentTimer = get(timer);
-  const currentPhase = get(gameState).phase;
   
-  // Ne mettre à jour que pendant la phase nuit
-  if (currentPhase !== 'nuit') return;
-
-  subTimers.update(timers => {
+  baseSubTimers.update(timers => {
     // Sauvegarder l'état actif des timers
     const activeTimers = timers.filter(t => t.isActive).map(t => t.id);
     
@@ -142,7 +170,7 @@ function updateSubTimerTimings() {
 
 // Fonction pour ajouter un sous-timer
 function addSubTimer(newTimer: SubTimer) {
-  subTimers.update(timers => {
+  baseSubTimers.update(timers => {
     const newTimers = [...timers, newTimer];
     return calculateSubTimerTimings(newTimers, get(timer).initialTimer);
   });
@@ -151,72 +179,55 @@ function addSubTimer(newTimer: SubTimer) {
 // Fonction pour démarrer un sous-timer
 function startSubTimer(id: string) {
   console.log('subTimerStore - startSubTimer:', { id });
-  subTimers.update(timers => {
-    const updatedTimers = timers.map(timer => ({
+  baseSubTimers.update(timers => {
+    return timers.map(timer => ({
       ...timer,
       isActive: timer.id === id
     }));
-    console.log('subTimerStore - startSubTimer result:', {
-      id,
-      updatedTimers: updatedTimers.map(t => ({ id: t.id, isActive: t.isActive }))
-    });
-    return updatedTimers;
   });
 }
 
 // Fonction pour arrêter un sous-timer
 function stopSubTimer(id: string) {
   console.log('subTimerStore - stopSubTimer:', { id });
-  subTimers.update(timers => {
-    const updatedTimers = timers.map(timer => {
+  baseSubTimers.update(timers => {
+    return timers.map(timer => {
       if (timer.id === id) {
         return { ...timer, isActive: false };
       }
       return timer;
     });
-    console.log('subTimerStore - stopSubTimer result:', {
-      id,
-      updatedTimers: updatedTimers.map(t => ({ id: t.id, isActive: t.isActive }))
-    });
-    return updatedTimers;
   });
 }
 
 // Fonction pour passer au sous-timer suivant
 function nextSubTimer() {
   console.log('subTimerStore - nextSubTimer called');
-  subTimers.update(timers => {
+  baseSubTimers.update(timers => {
     const activeIndex = timers.findIndex(t => t.isActive);
     console.log('subTimerStore - nextSubTimer current state:', {
       activeIndex,
       timers: timers.map(t => ({ id: t.id, isActive: t.isActive }))
     });
     
-    let updatedTimers;
     if (activeIndex === -1) {
       // Si aucun timer n'est actif, on active le premier
-      updatedTimers = timers.map((t, i) => ({ ...t, isActive: i === 0 }));
+      return timers.map((t, i) => ({ ...t, isActive: i === 0 }));
     } else if (activeIndex < timers.length - 1) {
       // On active le timer suivant
-      updatedTimers = timers.map((t, i) => ({ ...t, isActive: i === activeIndex + 1 }));
+      return timers.map((t, i) => ({ ...t, isActive: i === activeIndex + 1 }));
     } else {
       // Si c'était le dernier timer, on désactive tout
-      updatedTimers = timers.map(t => ({ ...t, isActive: false }));
+      return timers.map(t => ({ ...t, isActive: false }));
     }
-    
-    console.log('subTimerStore - nextSubTimer result:', {
-      updatedTimers: updatedTimers.map(t => ({ id: t.id, isActive: t.isActive }))
-    });
-    return updatedTimers;
   });
 }
 
 // Fonction pour calculer les sous-timers à partir de la durée totale de la nuit
-function calculateSubTimers(totalDuration: number, nightNumber: number) {
+function calculateSubTimers(totalDuration: number, nightNumber: number): SubTimer[] {
   console.log('calculateSubTimers called:', {
     totalDuration,
-    nightNumber,
-    currentPhase: get(gameState).phase
+    nightNumber
   });
 
   // Définir les phases de la nuit avec leurs pourcentages et rôles
@@ -298,7 +309,7 @@ function calculateSubTimers(totalDuration: number, nightNumber: number) {
   })));
 
   // Réinitialiser les sous-timers
-  subTimers.set([]);
+  baseSubTimers.set([]);
 
   // Ajouter chaque phase active
   activePhases.forEach(phase => {
@@ -320,11 +331,14 @@ function calculateSubTimers(totalDuration: number, nightNumber: number) {
   updateSubTimerTimings();
 
   // Activer uniquement le premier sous-timer
-  subTimers.update(timers => timers.map((t, i) => ({ ...t, isActive: i === 0 })));
+  const result = get(baseSubTimers).map((t, i) => ({ ...t, isActive: i === 0 }));
+  baseSubTimers.set(result);
+  
+  return result;
 }
 
 // Fonction pour passer aux rôles suivants
-function skipToNextRoles(currentRoleId: string) {
+function skipToNextRoles(currentRoleId: string): SubTimer[] {
   // Activer le flag de mise à jour manuelle
   isManualUpdate.set(true);
   
@@ -332,83 +346,40 @@ function skipToNextRoles(currentRoleId: string) {
   const elapsed = currentTimer.initialTimer - currentTimer.timer;
   const timeLeft = currentTimer.timer;
 
-  subTimers.update(timers => {
-    const current = timers.find(t => t.id === currentRoleId);
-    if (!current) return timers;
-
-    // Phase 1 : LG normaux -> Phase 2 : GML, IPDL, LB
-    if (currentRoleId === 'lgn') {
-      const updatedTimers = timers.map(timer => {
-        if (timer.id === 'lgn') {
-          // Pour le timer LG, on le met à 0
-          return { 
-            ...timer, 
-            endTime: elapsed,
-            duration: 0,
-            isActive: false,
-            percent: 0
-          };
-        } else if (['grandMechantLoup', 'loupBlanc', 'infectPereDesLoups'].includes(timer.id)) {
-          // Pour les timers de la phase 2, on leur donne leur part initiale + le temps restant des loups
-          const initialPhase2Time = Math.round(currentTimer.initialTimer * 0.25); // 25% du temps total
-          const lgnRemainingTime = Math.round(current.endTime - elapsed); // Temps restant des loups
-          const newDuration = Math.round(initialPhase2Time + lgnRemainingTime);
-          return {
-            ...timer,
-            startTime: elapsed,
-            endTime: elapsed + newDuration,
-            duration: newDuration,
-            isActive: true,
-            percent: Math.round((newDuration / currentTimer.initialTimer) * 100)
-          };
-        }
-        return timer;
-      });
-
-      // Réinitialiser le flag après un délai plus long (1.5s)
-      setTimeout(() => {
-        isManualUpdate.set(false);
-      }, 1500);
-
-      return updatedTimers;
+  const updatedTimers = get(baseSubTimers).map(timer => {
+    if (timer.id === currentRoleId) {
+      // Pour le timer actif, on le met à 0
+      return { 
+        ...timer, 
+        endTime: elapsed,
+        duration: 0,
+        isActive: false,
+        percent: 0
+      };
+    } else if (['grandMechantLoup', 'loupBlanc', 'infectPereDesLoups'].includes(timer.id)) {
+      // Pour les timers de la phase 2, on leur donne leur part initiale + le temps restant des loups
+      const initialPhase2Time = Math.round(currentTimer.initialTimer * 0.25); // 25% du temps total
+      const lgnRemainingTime = Math.round(timer.endTime - elapsed); // Temps restant des loups
+      const newDuration = Math.round(initialPhase2Time + lgnRemainingTime);
+      return {
+        ...timer,
+        startTime: elapsed,
+        endTime: elapsed + newDuration,
+        duration: newDuration,
+        isActive: true,
+        percent: Math.round((newDuration / currentTimer.initialTimer) * 100)
+      };
     }
-    // Phase 2 : GML, IPDL, LB -> Phase 3 : Sorcière
-    else if (['grandMechantLoup', 'loupBlanc', 'infectPereDesLoups'].includes(currentRoleId)) {
-      const updatedTimers = timers.map(timer => {
-        if (['grandMechantLoup', 'loupBlanc', 'infectPereDesLoups'].includes(timer.id)) {
-          // Pour les timers de la phase 2, on les met simplement à 0
-          return { 
-            ...timer, 
-            endTime: elapsed,
-            duration: 0,
-            isActive: false,
-            percent: 0
-          };
-        } else if (timer.id === 'sorciere') {
-          // Pour le timer de la sorcière, on lui donne tout le temps restant
-          const roundedTimeLeft = Math.round(timeLeft);
-          return {
-            ...timer,
-            startTime: elapsed,
-            endTime: elapsed + roundedTimeLeft,
-            duration: roundedTimeLeft,
-            isActive: true,
-            percent: Math.round((roundedTimeLeft / currentTimer.initialTimer) * 100)
-          };
-        }
-        return timer;
-      });
-
-      // Réinitialiser le flag après un délai plus long (1.5s)
-      setTimeout(() => {
-        isManualUpdate.set(false);
-      }, 1500);
-
-      return updatedTimers;
-    }
-
-    return timers;
+    return timer;
   });
+
+  // Réinitialiser le flag après un délai plus long (1.5s)
+  setTimeout(() => {
+    isManualUpdate.set(false);
+  }, 1500);
+
+  baseSubTimers.set(updatedTimers);
+  return updatedTimers;
 }
 
 // Fonction pour ajuster les sous-timers après un changement de durée
@@ -419,7 +390,7 @@ function adjustSubTimersAfterTimerChange(newInitial: number) {
   // Activer le flag de mise à jour manuelle
   isManualUpdate.set(true);
 
-  subTimers.update(timers => {
+  baseSubTimers.update(timers => {
     // Sauvegarder l'état actif des timers
     const activeTimers = timers.filter(t => t.isActive).map(t => t.id);
 
@@ -474,12 +445,7 @@ function adjustSubTimersAfterTimerChange(newInitial: number) {
 
 // S'abonner aux changements du timer principal
 timer.subscribe(() => {
-  const state = get(gameState);
-  if (state && state.phase === 'nuit') {
-    // Mettre à jour les timings même si un timer est actif
-    // Le flag isManualUpdate empêchera les mises à jour si nécessaire
-    updateSubTimerTimings();
-  }
+  updateSubTimerTimings();
 });
 
 // Fonction pour vérifier si un utilisateur a un rôle qui correspond à l'une des phases
@@ -487,7 +453,7 @@ export function userHasActiveRole(userRole: string, userLogin?: string): string 
   if (!userRole) return null;
   
   const normalizedRole = userRole.toLowerCase().trim();
-  const currentSubTimers = get(subTimers);
+  const currentSubTimers = get(baseSubTimers);
   
   // Vérifier si c'est un Enfant Sauvage qui est devenu un loup
   const isEnfantSauvageWolf = userLogin && userRole === 'Enfant sauvage' && 
@@ -527,11 +493,4 @@ export {
   stopSubTimer,
   skipToNextRoles,
   adjustSubTimersAfterTimerChange
-};
-
-gameState.subscribe(($gameState) => {
-  if ($gameState.phase === 'nuit') {
-    // On recalcule les sous-timers à chaque début de nuit
-    calculateSubTimers(get(timer).initialTimer, $gameState.cycleCount);
-  }
-}); 
+}; 

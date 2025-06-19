@@ -1,9 +1,7 @@
-import { writable, get } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import { browser } from '$app/environment';
-import { switchPhase } from './gameStore';
-import { gameState } from './gameStore';
 
-interface TimerState {
+export interface TimerState {
   timer: number;
   initialTimer: number;
   running: boolean;
@@ -19,111 +17,126 @@ const defaultState: TimerState = {
   subTimers: {}
 };
 
-const timerState = writable<TimerState>(defaultState);
+// Callback pour les changements d'état du timer
+let onTimerStateChange: ((state: TimerState) => void) | null = null;
 
-if (browser) {
-  const saved = localStorage.getItem('timerState');
-  if (saved) {
-    try {
-      const savedState = JSON.parse(saved);
-      const isGameRunning = JSON.parse(localStorage.getItem('gameState') || '{}')?.gameStarted;
-      if (!isGameRunning) {
-        timerState.set(defaultState);
-      } else {
-        timerState.set(savedState);
-      }
-    } catch (e) {
-      console.error('Erreur lors du chargement du timer:', e);
-    }
-  }
-
-  timerState.subscribe(state => {
-    localStorage.setItem('timerState', JSON.stringify(state));
-  });
-}
+// Store de base pour l'état du timer
+const baseTimerState = writable<TimerState>(defaultState);
 
 let interval: ReturnType<typeof setInterval> | null = null;
+let onTimerComplete: (() => void) | null = null;
 
-export function startTimer() {
-  stopTimer();
-
-  timerState.update(state => ({ ...state, running: true }));
-
-  interval = setInterval(() => {
-    timerState.update(state => {
-      if (state.timer > 0) {
-        return { ...state, timer: state.timer - 1 };
-      } else {
-        stopTimer();
-        switchPhase();
-        setTimeout(() => startTimer(), 100);
-        return { ...state, timer: state.initialTimer };
-      }
-    });
-  }, 1000);
+export function setTimerCompleteCallback(complete: () => void) {
+    onTimerComplete = complete;
 }
 
-export function updateInitialTimer(newTime: number) {
-  timerState.update(state => ({
-    ...state,
-    initialTimer: newTime,
-    timer: newTime
-  }));
-}
-
-export function addSubTimer(role: string, duration: number) {
-  timerState.update(state => ({
-    ...state,
-    subTimers: { ...state.subTimers, [role]: duration }
-  }));
-}
-
-export function startSubTimer(role: string) {
-  const subTimer = get(timerState).subTimers[role];
-  if (!subTimer) return;
-
-  stopTimer();
-
-  const subInterval = setInterval(() => {
-    timerState.update(state => {
-      if (state.subTimers[role] > 0) {
-        return {
-          ...state,
-          subTimers: {
-            ...state.subTimers,
-            [role]: state.subTimers[role] - 1
-          }
-        };
-      } else {
-        clearInterval(subInterval);
-        return state;
-      }
-    });
-  }, 1000);
-}
-
-export function stopTimer() {
-  if (interval) {
-    clearInterval(interval);
-    interval = null;
-  }
-  timerState.update(state => ({ ...state, running: false }));
-}
-
-export const timer = {
-  subscribe: timerState.subscribe,
-  start: startTimer,
-  stop: stopTimer,
-  updateInitial: updateInitialTimer,
-  addSubTimer,
-  startSubTimer,
-  reset: () => {
+function startTimer() {
     stopTimer();
-    timerState.update(state => ({
-      ...state,
-      timer: state.initialTimer,
-      running: false,
-      subTimers: {}
+
+    baseTimerState.update(state => ({ ...state, running: true }));
+
+    interval = setInterval(() => {
+        baseTimerState.update(state => {
+            if (state.timer > 0) {
+                return { ...state, timer: state.timer - 1 };
+            } else {
+                stopTimer();
+                onTimerComplete?.();
+                setTimeout(() => startTimer(), 100);
+                return { ...state, timer: state.initialTimer };
+            }
+        });
+    }, 1000);
+}
+
+function stopTimer() {
+    if (interval) {
+        clearInterval(interval);
+        interval = null;
+    }
+    baseTimerState.update(state => ({ ...state, running: false }));
+}
+
+function updateInitialTimer(newTime: number) {
+    baseTimerState.update(state => ({
+        ...state,
+        initialTimer: newTime,
+        timer: newTime
     }));
-  }
-};
+}
+
+function addSubTimer(role: string, duration: number) {
+    baseTimerState.update(state => ({
+        ...state,
+        subTimers: { ...state.subTimers, [role]: duration }
+    }));
+}
+
+function startSubTimer(role: string) {
+    const subTimer = get(baseTimerState).subTimers[role];
+    if (!subTimer) return;
+
+    stopTimer();
+
+    const subInterval = setInterval(() => {
+        baseTimerState.update(state => {
+            if (state.subTimers[role] > 0) {
+                return {
+                    ...state,
+                    subTimers: {
+                        ...state.subTimers,
+                        [role]: state.subTimers[role] - 1
+                    }
+                };
+            } else {
+                clearInterval(subInterval);
+                return state;
+            }
+        });
+    }, 1000);
+}
+
+function resetTimer() {
+    stopTimer();
+    baseTimerState.update(state => ({
+        ...state,
+        timer: state.initialTimer,
+        running: false,
+        subTimers: {}
+    }));
+}
+
+// Store avec méthodes set, update et les contrôles du timer
+export const timer = (() => {
+    const { subscribe } = derived(baseTimerState, ($state) => {
+        if (onTimerStateChange) {
+            onTimerStateChange($state);
+        }
+        return $state;
+    });
+
+    return {
+        subscribe,
+        set: (state: TimerState) => {
+            baseTimerState.set(state);
+        },
+        update: (updater: (state: TimerState) => TimerState) => {
+            baseTimerState.update(updater);
+        },
+        start: startTimer,
+        stop: stopTimer,
+        updateInitial: updateInitialTimer,
+        addSubTimer,
+        startSubTimer,
+        reset: resetTimer
+    };
+})();
+
+// Fonction pour configurer le callback de changement d'état
+export function setTimerStateCallback(callback: (state: TimerState) => void) {
+    onTimerStateChange = callback;
+    // Appeler le callback immédiatement avec l'état actuel
+    baseTimerState.subscribe(state => {
+        callback(state);
+    })();
+}

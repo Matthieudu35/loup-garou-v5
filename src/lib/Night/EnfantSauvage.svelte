@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { gameState } from '../../stores/gameStore';
+  import { gameState } from '../../stores/gameState';
   import { users, selectedPlayers } from '../../stores/usersStore';
   import { eliminationStore } from '../../stores/eliminationStore';
   import { 
