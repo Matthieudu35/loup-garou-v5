@@ -321,14 +321,15 @@
                             OK
                         </button>
                         <button 
-                            class="btn-green" 
-                            disabled={!$rolesAssigned}
-                            on:click={() => {
-                                // TODO: Implement startGame
-                            }}
-                        >
-                            Lancer la partie
-                        </button>
+    class="btn-green" 
+    disabled={!$rolesAssigned}
+    on:click={() => {
+        startGame();
+        timer.start();
+    }}
+>
+    Lancer la partie
+</button>
                     </div>
                 </div>
             {/if}
@@ -391,7 +392,7 @@
         <section class="time-master-section">
             <h2>Maître du temps</h2>
             <button class="btn-switch" on:click={() => {
-                // TODO: Implement switchPhase
+                switchPhase();
             }}>
                 {#if $gameState.phase === 'jour'}
                     Passer à la nuit suivante

@@ -2,7 +2,6 @@
 
 import { writable, derived } from 'svelte/store';
 import type { User } from './types';
-import { initialUsers } from './usersData';
 import { browser } from '$app/environment';
 
 // Callbacks
@@ -10,8 +9,20 @@ let onUsersChange: ((users: User[]) => void) | null = null;
 let onSelectedPlayersChange: ((players: string[]) => void) | null = null;
 let onCurrentUserChange: ((login: string | null) => void) | null = null;
 
-// Store de base pour les utilisateurs
-const baseUsers = writable<User[]>(initialUsers);
+// Store de base pour les utilisateurs (initialisé vide)
+const baseUsers = writable<User[]>([]);
+
+// Charger les utilisateurs depuis l'API côté client
+if (browser) {
+	fetch('/api/users')
+		.then(res => res.json())
+		.then((users: User[]) => {
+			baseUsers.set(users);
+		})
+		.catch((err) => {
+			console.error('Erreur lors du chargement des utilisateurs:', err);
+		});
+}
 
 // Store dérivé pour les utilisateurs avec callbacks
 export const users = derived(baseUsers, ($users) => {

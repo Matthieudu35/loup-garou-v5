@@ -6,6 +6,8 @@
     import { timer } from '../stores/timerStore';
     import PlayersMenu from './PlayersMenu.svelte';
     import { Team, ROLES } from '../stores/teams';
+    import { onMount } from 'svelte';
+    import { setTimerCompleteCallback } from '../stores/timerStore';
 
     let newTime: number = 3600; // Valeur par défaut pour modifier le timer
     let showPlayerSelection = false;
@@ -60,6 +62,12 @@
         const remainingSeconds = seconds % 60;
         return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
     }
+
+    onMount(() => {
+        setTimerCompleteCallback(() => {
+            switchPhase();
+        });
+    });
 </script>
 
 <div class="container">

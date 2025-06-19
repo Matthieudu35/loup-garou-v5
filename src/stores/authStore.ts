@@ -22,7 +22,7 @@ export const currentUser = derived(baseCurrentUser, ($user) => {
 
 // URL de l'API
 const API_URL = browser && window.location.hostname === 'localhost' 
-  ? 'http://localhost:3000' 
+  ? 'http://localhost:5173' 
   : 'https://proactive-balance-production.up.railway.app';
 
 // Fonction de connexion

@@ -13,13 +13,13 @@ import { setLoupVotesCallback, setLoupVictimCallback } from './chosen';
 import { browser } from '$app/environment';
 import { currentUser } from './authStore';
 
-const apiURL = 'https://proactive-balance-production.up.railway.app';
+const apiURL = '/api/state';
 let fetchInterval: ReturnType<typeof setInterval> | null = null;
 
 // Fonction pour récupérer l'état depuis le backend
 export async function fetchGameState(): Promise<void> {
     try {
-        const response = await fetch(`${apiURL}/game-state`);
+        const response = await fetch(apiURL);
         if (!response.ok) throw new Error('Failed to fetch game state');
         const data = await response.json();
         gameState.set(data);
@@ -32,7 +32,7 @@ export async function fetchGameState(): Promise<void> {
 export async function updateGameState(state: any): Promise<void> {
     try {
         const { showMayorElection, ...stateToSave } = state;
-        const response = await fetch(`${apiURL}/game-state`, {
+        const response = await fetch(apiURL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -127,19 +127,32 @@ export function startGame() {
         ...state,
         gameStarted: true,
         phase: 'nuit',
-        cycleCount: 1,
+        cycleCount: 0,
         // Ajoute ici d'autres initialisations si besoin
     }));
 }
 
 // Changer de phase (jour <-> nuit)
 export function switchPhase() {
-    gameState.update((state: GameState) => ({
-        ...state,
-        phase: state.phase === 'nuit' ? 'jour' : 'nuit',
-        cycleCount: state.phase === 'nuit' ? state.cycleCount : state.cycleCount + 1,
-        // Ajoute ici d'autres transitions si besoin
-    }));
+    gameState.update((state: GameState) => {
+        // Empêche de changer de phase si le countdown est affiché
+        if (state.showVoteCountdown) return state;
+
+        if (state.phase === 'nuit') {
+            // On passe à jour, on incrémente le cycleCount
+            return {
+                ...state,
+                phase: 'jour',
+                cycleCount: state.cycleCount + 1,
+            };
+        } else {
+            // On termine le jour : afficher le countdown au lieu de passer à la nuit directement
+            return {
+                ...state,
+                showVoteCountdown: true,
+            };
+        }
+    });
 }
 
 // Réinitialiser la partie

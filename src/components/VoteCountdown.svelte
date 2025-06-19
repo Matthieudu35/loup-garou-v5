@@ -6,6 +6,10 @@
     import { getUserByLogin } from '../stores/gameLogic';
     import { fade, scale } from 'svelte/transition';
     import type { User } from '../stores/types';
+    import { eliminationStore } from '../stores/eliminationStore';
+    import { getVoteResult, resetAll as resetVotes } from '../stores/dayVoteStore';
+    import { switchPhase } from '../stores/gameLogic';
+    import { get } from 'svelte/store';
 
     let sortedVotes: { login: string; count: number; user: User | undefined }[] = [];
     let currentIndex = 0;
@@ -35,6 +39,21 @@
 
         return () => clearInterval(interval);
     });
+
+    $: if (isComplete && $gameState.phase === 'jour' && $gameState.showVoteCountdown) {
+        // Élimination automatique si pas égalité
+        const result = getVoteResult();
+        if (!result.isTie && result.winner) {
+            eliminationStore.eliminate(result.winner, 'vote', 'vote', 'Élimination par vote du village');
+        }
+        // Réinitialiser les votes pour le prochain tour
+        resetVotes();
+        // Masquer le countdown et passer à la nuit après un court délai
+        setTimeout(() => {
+            gameState.update(state => ({ ...state, showVoteCountdown: false }));
+            switchPhase();
+        }, 2000); // 2 secondes pour laisser le temps de lire le résultat
+    }
 </script>
 
 <div class="overlay" transition:fade>
